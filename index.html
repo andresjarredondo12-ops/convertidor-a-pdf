@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Convertidor HTML a PDF Masivo</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<style>
+body {
+    font-family: Arial;
+    background: #1e1e1e;
+    color: white;
+    text-align: center;
+    padding: 20px;
+}
+button {
+    padding: 10px 20px;
+    margin: 10px;
+    background: #00b894;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
+}
+#log {
+    margin-top: 20px;
+    text-align: left;
+    background: #2d2d2d;
+    padding: 10px;
+    height: 300px;
+    overflow-y: auto;
+}
+iframe {
+    width: 800px;
+    height: 1000px;
+    border: 1px solid #555;
+    background: white;
+}
+</style>
+</head>
+
+<body>
+
+<h2>📄 Convertidor HTML → PDF (Masivo)</h2>
+
+<input type="file" id="fileInput" multiple accept=".html">
+<br>
+<button onclick="procesar()">Convertir a PDF</button>
+
+<div id="log"></div>
+
+<iframe id="preview"></iframe>
+
+<script>
+
+function log(msg) {
+    document.getElementById("log").innerHTML += msg + "<br>";
+}
+
+// Extraer número de seguimiento (15 dígitos)
+function extraerSeguimiento(texto) {
+    let match = texto.match(/\b\d{15}\b/);
+    return match ? match[0] : "SIN_SEGUIMIENTO";
+}
+
+// Extraer ID (ajustable según formato)
+function extraerID(texto) {
+    let match = texto.match(/ID[:\s]*([A-Z0-9\-]+)/i);
+    return match ? match[1] : "SIN_ID";
+}
+
+async function procesar() {
+    const files = document.getElementById("fileInput").files;
+
+    if (files.length === 0) {
+        alert("Seleccioná archivos HTML");
+        return;
+    }
+
+    for (let file of files) {
+
+        log("Procesando: " + file.name);
+
+        let contenido = await file.text();
+
+        // Mostrar en iframe para render correcto
+        let iframe = document.getElementById("preview");
+        iframe.srcdoc = contenido;
+
+        await new Promise(r => setTimeout(r, 1000)); // esperar render
+
+        let doc = iframe.contentDocument || iframe.contentWindow.document;
+
+        let textoPlano = doc.body.innerText;
+
+        let seguimiento = extraerSeguimiento(textoPlano);
+        let id = extraerID(textoPlano);
+
+        let nombrePDF = `${seguimiento}_${id}.pdf`;
+
+        log("→ Generando: " + nombrePDF);
+
+        let opt = {
+            margin:       0,
+            filename:     nombrePDF,
+            image:        { type: 'jpeg', quality: 1 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        await html2pdf().set(opt).from(doc.body).save();
+
+        log("✔ Completado: " + nombrePDF);
+    }
+
+    log("🎉 Todos los archivos procesados");
+}
+
+</script>
+
+</body>
+</html>
