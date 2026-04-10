@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Convertidor HTML a PDF Masivo</title>
+<title>HTML → PDF CARPETA DIRECTA</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
@@ -11,7 +11,6 @@ body {
     font-family: Arial;
     background: #1e1e1e;
     color: white;
-    text-align: center;
     padding: 20px;
 }
 button {
@@ -21,101 +20,110 @@ button {
     border: none;
     color: white;
     cursor: pointer;
-    font-size: 16px;
 }
 #log {
-    margin-top: 20px;
-    text-align: left;
     background: #2d2d2d;
     padding: 10px;
     height: 300px;
     overflow-y: auto;
+    text-align: left;
 }
 iframe {
-    width: 800px;
-    height: 1000px;
-    border: 1px solid #555;
-    background: white;
+    display:none;
 }
 </style>
 </head>
 
 <body>
 
-<h2>📄 Convertidor HTML → PDF (Masivo)</h2>
+<h2>📄 HTML → PDF Guardado en Carpeta</h2>
 
-<input type="file" id="fileInput" multiple accept=".html">
-<br>
-<button onclick="procesar()">Convertir a PDF</button>
+<button onclick="selectFolder()">1. Elegir carpeta destino</button>
+<button onclick="document.getElementById('input').click()">2. Seleccionar HTML</button>
+
+<input type="file" id="input" webkitdirectory multiple hidden>
 
 <div id="log"></div>
 
-<iframe id="preview"></iframe>
+<iframe id="frame"></iframe>
 
 <script>
 
-function log(msg) {
+let dirHandle = null;
+
+function log(msg){
     document.getElementById("log").innerHTML += msg + "<br>";
 }
 
-// Extraer número de seguimiento (15 dígitos)
-function extraerSeguimiento(texto) {
-    let match = texto.match(/\b\d{15}\b/);
-    return match ? match[0] : "SIN_SEGUIMIENTO";
+// 🔥 EXTRAER DATOS
+function extraerSeguimiento(texto){
+    let m = texto.match(/\b\d{15}\b/);
+    return m ? m[0] : "SIN_SEGUIMIENTO";
 }
 
-// Extraer ID (ajustable según formato)
-function extraerID(texto) {
-    let match = texto.match(/ID[:\s]*([A-Z0-9\-]+)/i);
-    return match ? match[1] : "SIN_ID";
+function extraerID(texto){
+    let m = texto.match(/ID[:\s]*([A-Z0-9\-]+)/i);
+    return m ? m[1] : "SIN_ID";
 }
 
-async function procesar() {
-    const files = document.getElementById("fileInput").files;
+// 🔥 CARPETA DESTINO
+async function selectFolder(){
+    dirHandle = await window.showDirectoryPicker();
+    log("📁 Carpeta seleccionada");
+}
 
-    if (files.length === 0) {
-        alert("Seleccioná archivos HTML");
-        return;
+// 🔥 PROCESO
+document.getElementById('input').onchange = async (e)=>{
+
+    const files = Array.from(e.target.files).filter(f=>f.name.endsWith(".html"));
+
+    const frame = document.getElementById("frame");
+
+    for(let file of files){
+
+        try{
+
+            log("Procesando: " + file.name);
+
+            let html = await file.text();
+
+            frame.srcdoc = html;
+
+            await new Promise(r=>frame.onload = r);
+
+            let doc = frame.contentDocument;
+
+            let text = doc.body.innerText;
+
+            let seguimiento = extraerSeguimiento(text);
+            let id = extraerID(text);
+
+            let nombre = `${seguimiento}_${id}.pdf`;
+
+            let pdfBlob = await html2pdf()
+                .set({
+                    margin:0,
+                    html2canvas:{ scale:2, useCORS:true },
+                    jsPDF:{ unit:'mm', format:'a4' }
+                })
+                .from(doc.body)
+                .outputPdf('blob');
+
+            // 🔥 GUARDADO DIRECTO EN CARPETA
+            const fileHandle = await dirHandle.getFileHandle(nombre, { create:true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(pdfBlob);
+            await writable.close();
+
+            log("✔ Guardado: " + nombre);
+
+        }catch(err){
+            log("❌ ERROR: " + file.name + " -> " + err.message);
+        }
     }
 
-    for (let file of files) {
-
-        log("Procesando: " + file.name);
-
-        let contenido = await file.text();
-
-        // Mostrar en iframe para render correcto
-        let iframe = document.getElementById("preview");
-        iframe.srcdoc = contenido;
-
-        await new Promise(r => setTimeout(r, 1000)); // esperar render
-
-        let doc = iframe.contentDocument || iframe.contentWindow.document;
-
-        let textoPlano = doc.body.innerText;
-
-        let seguimiento = extraerSeguimiento(textoPlano);
-        let id = extraerID(textoPlano);
-
-        let nombrePDF = `${seguimiento}_${id}.pdf`;
-
-        log("→ Generando: " + nombrePDF);
-
-        let opt = {
-            margin:       0,
-            filename:     nombrePDF,
-            image:        { type: 'jpeg', quality: 1 },
-            html2canvas:  { scale: 2 },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        await html2pdf().set(opt).from(doc.body).save();
-
-        log("✔ Completado: " + nombrePDF);
-    }
-
-    log("🎉 Todos los archivos procesados");
-}
+    log("🎉 FINALIZADO");
+};
 
 </script>
 
