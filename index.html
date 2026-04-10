@@ -2,24 +2,19 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>HTML → PDF Auto System</title>
+<title>Sistema HTML → PDF Auto</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <style>
-:root{
---bg:#080c14;--surface:#0d1526;--border:#1a2744;
---accent:#2563eb;--accent2:#38bdf8;
---green:#22c55e;--red:#ef4444;--text:#e2e8f0;
-}
-body{background:var(--bg);color:var(--text);font-family:Arial;padding:30px}
-.card{background:var(--surface);border:1px solid var(--border);padding:25px;border-radius:12px}
-button{padding:12px;background:var(--accent);border:none;color:white;cursor:pointer;margin:5px}
-#log{height:200px;overflow:auto;background:#020408;padding:10px;margin-top:15px;font-size:12px}
-#progress{height:6px;background:var(--accent2);width:0%}
-.track{background:#222;height:6px;margin-top:10px}
-iframe{display:none}
+body{background:#080c14;color:#e2e8f0;font-family:Arial;padding:30px}
+.card{background:#0d1526;border:1px solid #1a2744;padding:25px;border-radius:12px}
+button{padding:12px;margin:5px;background:#2563eb;color:#fff;border:none;cursor:pointer}
+#log{height:220px;overflow:auto;background:#020408;padding:10px;font-size:12px}
+.track{height:6px;background:#222;margin-top:10px}
+#bar{height:6px;background:#38bdf8;width:0%}
 .stat{margin-top:10px}
+iframe{display:none}
 </style>
 </head>
 
@@ -34,7 +29,7 @@ iframe{display:none}
 
 <input type="file" id="inputHTML" webkitdirectory multiple hidden>
 
-<div class="track"><div id="progress"></div></div>
+<div class="track"><div id="bar"></div></div>
 
 <div class="stat">
 Total: <span id="total">0</span> |
@@ -50,106 +45,123 @@ Error: <span id="err">0</span>
 
 <script>
 
+const fsa = ('showDirectoryPicker' in window);
 let dirHandle = null;
-const fsa = 'showDirectoryPicker' in window;
 
 const logDiv = document.getElementById('log');
-const progress = document.getElementById('progress');
+const bar = document.getElementById('bar');
 
-function log(msg,color="#888"){
+function log(msg,color="#64748b"){
     logDiv.innerHTML += `<div style="color:${color}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
     logDiv.scrollTop = logDiv.scrollHeight;
 }
 
-// EXTRAER TRACKING
-function getTracking(text){
-    let m = text.match(/\b\d{15}\b/);
-    return m ? m[0] : "SIN_TRACK";
+// ===== EXTRACCIÓN =====
+function extraerSeguimiento(texto){
+    let m = texto.match(/\b\d{15}\b/);
+    return m ? m[0] : "SIN_SEGUIMIENTO";
 }
 
-// EXTRAER ID
-function getID(text){
-    let m = text.match(/ID[:\s]*([A-Z0-9\-]+)/i);
+function extraerID(texto){
+    let m = texto.match(/ID[:\s]*([A-Z0-9\-]+)/i);
     return m ? m[1] : "0000";
 }
 
+// ===== BOTONES =====
 document.getElementById('btnDestino').onclick = async()=>{
-    if(!fsa){ alert("Usar Chrome/Edge"); return;}
+    if(!fsa){ alert("Usar Chrome/Edge"); return; }
     dirHandle = await showDirectoryPicker();
-    log("Carpeta seleccionada: "+dirHandle.name,"#22c55e");
+    log("📁 Carpeta destino: "+dirHandle.name,"#22c55e");
     document.getElementById('btnProcesar').disabled = false;
-}
+};
 
-document.getElementById('btnProcesar').onclick=()=>{
+document.getElementById('btnProcesar').onclick = ()=>{
     document.getElementById('inputHTML').click();
-}
+};
 
+// ===== PROCESAMIENTO =====
 document.getElementById('inputHTML').onchange = async(e)=>{
 
-    const files = Array.from(e.target.files).filter(f=>f.name.endsWith(".html"));
+    const files = Array.from(e.target.files)
+        .filter(f => f.name.toLowerCase().endsWith(".html"));
 
-    document.getElementById('total').textContent = files.length;
+    if(files.length === 0){
+        log("No se encontraron HTML","#eab308");
+        return;
+    }
 
     let ok=0, err=0;
+
+    document.getElementById('total').textContent = files.length;
 
     const frame = document.getElementById('frame');
 
     for(let i=0;i<files.length;i++){
 
-        let file = files[i];
+        const file = files[i];
 
         try{
 
-            log("Procesando: "+file.name);
+            log(`📄 (${i+1}/${files.length}) ${file.name}`);
 
-            let html = await file.text();
+            const html = await file.text();
 
+            // render real
             frame.srcdoc = html;
 
-            await new Promise(r=>setTimeout(r,400));
+            await new Promise(r=>setTimeout(r,500));
 
-            let doc = frame.contentDocument;
+            const doc = frame.contentDocument;
 
-            let text = doc.body.innerText;
+            const texto = doc.body.innerText;
 
-            let track = getTracking(text);
-            let id = getID(text);
+            const seguimiento = extraerSeguimiento(texto);
+            const id = extraerID(texto);
 
-            let name = `${track}(id_${id}).pdf`;
+            const nombre = `${seguimiento}(id_${id}).pdf`;
 
-            let blob = await html2pdf()
+            // generar PDF
+            const blob = await html2pdf()
+                .set({
+                    margin:0,
+                    html2canvas:{scale:2},
+                    jsPDF:{unit:'mm',format:'a4'}
+                })
                 .from(doc.body)
                 .outputPdf('blob');
 
+            // guardar
             if(fsa && dirHandle){
-                const fileHandle = await dirHandle.getFileHandle(name,{create:true});
-                const writable = await fileHandle.createWritable();
+                const handle = await dirHandle.getFileHandle(nombre,{create:true});
+                const writable = await handle.createWritable();
                 await writable.write(blob);
                 await writable.close();
             }else{
-                let a=document.createElement("a");
+                const a=document.createElement("a");
                 a.href=URL.createObjectURL(blob);
-                a.download=name;
+                a.download=nombre;
                 a.click();
             }
 
             ok++;
             document.getElementById('ok').textContent = ok;
-            log("✔ "+name,"#22c55e");
+
+            log("✔ "+nombre,"#22c55e");
 
         }catch(e){
             err++;
             document.getElementById('err').textContent = err;
-            log("ERROR: "+file.name+" -> "+e.message,"#ef4444");
+            log("ERROR: "+file.name,"#ef4444");
         }
 
-        progress.style.width = ((i+1)/files.length*100)+"%";
+        bar.style.width = ((i+1)/files.length*100)+"%";
 
+        // evita congelamiento
         await new Promise(r=>setTimeout(r,150));
     }
 
-    log("FINALIZADO","cyan");
-}
+    log("🎉 FINALIZADO","cyan");
+};
 
 </script>
 
