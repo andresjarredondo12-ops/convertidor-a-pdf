@@ -1,130 +1,130 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>HTML → PDF CARPETA DIRECTA</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
-<style>
-body {
-    font-family: Arial;
-    background: #1e1e1e;
-    color: white;
-    padding: 20px;
-}
-button {
-    padding: 10px 20px;
-    margin: 10px;
-    background: #00b894;
-    border: none;
-    color: white;
-    cursor: pointer;
-}
-#log {
-    background: #2d2d2d;
-    padding: 10px;
-    height: 300px;
-    overflow-y: auto;
-    text-align: left;
-}
-iframe {
-    display:none;
-}
-</style>
+    <meta charset="UTF-8">
+    <title>Convertidor Andreani Optimizado</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #e0e0e0; padding: 30px; text-align: center; }
+        .container { max-width: 800px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        button { padding: 12px 24px; margin: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-folder { background: #0984e3; color: white; }
+        .btn-process { background: #00b894; color: white; }
+        button:disabled { background: #444; cursor: not-allowed; }
+        #log { background: #000; color: #00ff00; padding: 15px; height: 350px; overflow-y: auto; text-align: left; font-family: 'Courier New', Courier, monospace; font-size: 13px; border-radius: 5px; margin-top: 20px; border: 1px solid #333; }
+        iframe { display:none; }
+        .status { color: #aaa; margin-bottom: 10px; }
+    </style>
 </head>
-
 <body>
 
-<h2>📄 HTML → PDF Guardado en Carpeta</h2>
+<div class="container">
+    <h2>📦 Convertidor de Constancias Andreani</h2>
+    <p class="status">Convierte carpetas de HTML a PDF con renombrado automático</p>
 
-<button onclick="selectFolder()">1. Elegir carpeta destino</button>
-<button onclick="document.getElementById('input').click()">2. Seleccionar HTML</button>
+    <button class="btn-folder" onclick="selectFolder()">1. Elegir Carpeta Destino</button>
+    <button class="btn-process" id="btnInput" onclick="document.getElementById('input').click()" disabled>2. Seleccionar Carpeta con HTMLs</button>
 
-<input type="file" id="input" webkitdirectory multiple hidden>
+    <input type="file" id="input" webkitdirectory multiple hidden>
 
-<div id="log"></div>
+    <div id="log">Esperando inicio...</div>
+</div>
 
 <iframe id="frame"></iframe>
 
 <script>
+    let dirHandle = null;
 
-let dirHandle = null;
+    function log(msg, color = "#00ff00") {
+        const logDiv = document.getElementById("log");
+        logDiv.innerHTML += `<span style="color: ${color}">${msg}</span><br>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
 
-function log(msg){
-    document.getElementById("log").innerHTML += msg + "<br>";
-}
+    // 🔥 EXTRACTORES MEJORADOS
+    function extraerSeguimiento(texto) {
+        // Busca específicamente un número de 15 dígitos (formato Andreani)
+        const m = texto.match(/\b\d{15}\b/);
+        return m ? m[0] : "000000000000000";
+    }
 
-// 🔥 EXTRAER DATOS
-function extraerSeguimiento(texto){
-    let m = texto.match(/\b\d{15}\b/);
-    return m ? m[0] : "SIN_SEGUIMIENTO";
-}
+    function extraerID(texto) {
+        // Busca "ID:" seguido de números, ignorando espacios
+        const m = texto.match(/ID\s*[:\-]?\s*(\d+)/i);
+        return m ? m[1] : "000000";
+    }
 
-function extraerID(texto){
-    let m = texto.match(/ID[:\s]*([A-Z0-9\-]+)/i);
-    return m ? m[1] : "SIN_ID";
-}
-
-// 🔥 CARPETA DESTINO
-async function selectFolder(){
-    dirHandle = await window.showDirectoryPicker();
-    log("📁 Carpeta seleccionada");
-}
-
-// 🔥 PROCESO
-document.getElementById('input').onchange = async (e)=>{
-
-    const files = Array.from(e.target.files).filter(f=>f.name.endsWith(".html"));
-
-    const frame = document.getElementById("frame");
-
-    for(let file of files){
-
-        try{
-
-            log("Procesando: " + file.name);
-
-            let html = await file.text();
-
-            frame.srcdoc = html;
-
-            await new Promise(r=>frame.onload = r);
-
-            let doc = frame.contentDocument;
-
-            let text = doc.body.innerText;
-
-            let seguimiento = extraerSeguimiento(text);
-            let id = extraerID(text);
-
-            let nombre = `${seguimiento}_${id}.pdf`;
-
-            let pdfBlob = await html2pdf()
-                .set({
-                    margin:0,
-                    html2canvas:{ scale:2, useCORS:true },
-                    jsPDF:{ unit:'mm', format:'a4' }
-                })
-                .from(doc.body)
-                .outputPdf('blob');
-
-            // 🔥 GUARDADO DIRECTO EN CARPETA
-            const fileHandle = await dirHandle.getFileHandle(nombre, { create:true });
-            const writable = await fileHandle.createWritable();
-            await writable.write(pdfBlob);
-            await writable.close();
-
-            log("✔ Guardado: " + nombre);
-
-        }catch(err){
-            log("❌ ERROR: " + file.name + " -> " + err.message);
+    async function selectFolder() {
+        try {
+            dirHandle = await window.showDirectoryPicker();
+            log("📁 Carpeta de destino vinculada correctamente.");
+            document.getElementById('btnInput').disabled = false;
+        } catch (err) {
+            log("⚠ Selección de carpeta cancelada.", "#ff7675");
         }
     }
 
-    log("🎉 FINALIZADO");
-};
+    document.getElementById('input').onchange = async (e) => {
+        const files = Array.from(e.target.files).filter(f => f.name.toLowerCase().endsWith(".html"));
+        
+        if (files.length === 0) {
+            log("❌ No se encontraron archivos .html en la carpeta.", "#ff7675");
+            return;
+        }
 
+        log(`🚀 Iniciando proceso de ${files.length} archivos...`, "#f1c40f");
+        const frame = document.getElementById("frame");
+
+        for (let file of files) {
+            try {
+                // Leer el archivo HTML
+                let htmlContent = await file.text();
+                
+                // Cargar en el iframe para renderizado
+                frame.srcdoc = htmlContent;
+                
+                // Esperar a que el contenido cargue y se procesen los estilos internos
+                await new Promise(r => {
+                    frame.onload = () => setTimeout(r, 800); // 800ms de delay para evitar PDFs "rotos"
+                });
+
+                let doc = frame.contentDocument || frame.contentWindow.document;
+                let text = doc.body.innerText;
+
+                // Extraer datos para el nombre
+                let seguimiento = extraerSeguimiento(text);
+                let id = extraerID(text);
+                let nombreArchivo = `${seguimiento}_ID_${id}.pdf`;
+
+                log(`⏳ Procesando: ${file.name} -> ${nombreArchivo}...`, "#aaa");
+
+                // Configuración de html2pdf para máxima calidad
+                const opt = {
+                    margin: 10,
+                    filename: nombreArchivo,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true, logging: false },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+
+                // Generar Blob del PDF
+                const pdfBlob = await html2pdf().set(opt).from(doc.body).outputPdf('blob');
+
+                // Guardar directamente en la carpeta seleccionada
+                const fileHandle = await dirHandle.getFileHandle(nombreArchivo, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(pdfBlob);
+                await writable.close();
+
+                log(`✔ Guardado: ${nombreArchivo}`, "#55efc4");
+
+            } catch (err) {
+                log(`❌ Error en ${file.name}: ${err.message}`, "#ff7675");
+            }
+        }
+
+        log("<br>🎉 ¡PROCESO COMPLETADO CON ÉXITO!", "#f1c40f");
+    };
 </script>
 
 </body>
