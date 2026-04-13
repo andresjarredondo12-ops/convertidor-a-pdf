@@ -2,128 +2,109 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Convertidor Andreani Optimizado</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <title>Sincronizador Andreani Pro</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #e0e0e0; padding: 30px; text-align: center; }
-        .container { max-width: 800px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        button { padding: 12px 24px; margin: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .btn-folder { background: #0984e3; color: white; }
-        .btn-process { background: #00b894; color: white; }
-        button:disabled { background: #444; cursor: not-allowed; }
-        #log { background: #000; color: #00ff00; padding: 15px; height: 350px; overflow-y: auto; text-align: left; font-family: 'Courier New', Courier, monospace; font-size: 13px; border-radius: 5px; margin-top: 20px; border: 1px solid #333; }
-        iframe { display:none; }
-        .status { color: #aaa; margin-bottom: 10px; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #111; color: #eee; padding: 40px; text-align: center; }
+        .card { max-width: 700px; margin: auto; background: #222; padding: 30px; border-radius: 15px; border: 1px solid #444; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h2 { color: #00d1b2; margin-top: 0; }
+        .step { margin: 20px 0; padding: 15px; background: #2c2c2c; border-radius: 8px; }
+        button { background: #00d1b2; color: #111; border: none; padding: 12px 25px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        button:disabled { background: #444; color: #888; cursor: not-allowed; }
+        #log { margin-top: 20px; text-align: left; background: #000; padding: 15px; height: 300px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 12px; color: #00ff00; border: 1px solid #333; }
+        .info { font-size: 12px; color: #888; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>📦 Convertidor de Constancias Andreani</h2>
-    <p class="status">Convierte carpetas de HTML a PDF con renombrado automático</p>
+<div class="card">
+    <h2>🚀 Convertidor Binario de Constancias</h2>
+    <p>Extrae el PDF original desde los archivos HTML descargados.</p>
 
-    <button class="btn-folder" onclick="selectFolder()">1. Elegir Carpeta Destino</button>
-    <button class="btn-process" id="btnInput" onclick="document.getElementById('input').click()" disabled>2. Seleccionar Carpeta con HTMLs</button>
+    <div class="step">
+        <button onclick="selectDest()">1. Carpeta de Destino (PDFs)</button>
+    </div>
+    
+    <div class="step">
+        <button id="btnProcess" onclick="document.getElementById('fileInput').click()" disabled>2. Seleccionar Carpeta con HTMLs</button>
+        <input type="file" id="fileInput" webkitdirectory multiple style="display:none">
+    </div>
 
-    <input type="file" id="input" webkitdirectory multiple hidden>
-
-    <div id="log">Esperando inicio...</div>
+    <div id="log">Esperando acción...</div>
+    <div class="info">Nota: Los archivos se renombrarán automáticamente usando el Nro de Envío e ID.</div>
 </div>
 
-<iframe id="frame"></iframe>
+<iframe id="engine" style="display:none"></iframe>
 
 <script>
-    let dirHandle = null;
+    let destHandle = null;
 
     function log(msg, color = "#00ff00") {
-        const logDiv = document.getElementById("log");
-        logDiv.innerHTML += `<span style="color: ${color}">${msg}</span><br>`;
-        logDiv.scrollTop = logDiv.scrollHeight;
+        const l = document.getElementById("log");
+        l.innerHTML += `<span style="color:${color}">[${new Date().toLocaleTimeString()}] ${msg}</span><br>`;
+        l.scrollTop = l.scrollHeight;
     }
 
-    // 🔥 EXTRACTORES MEJORADOS
-    function extraerSeguimiento(texto) {
-        // Busca específicamente un número de 15 dígitos (formato Andreani)
-        const m = texto.match(/\b\d{15}\b/);
-        return m ? m[0] : "000000000000000";
-    }
-
-    function extraerID(texto) {
-        // Busca "ID:" seguido de números, ignorando espacios
-        const m = texto.match(/ID\s*[:\-]?\s*(\d+)/i);
-        return m ? m[1] : "000000";
-    }
-
-    async function selectFolder() {
+    async function selectDest() {
         try {
-            dirHandle = await window.showDirectoryPicker();
-            log("📁 Carpeta de destino vinculada correctamente.");
-            document.getElementById('btnInput').disabled = false;
-        } catch (err) {
-            log("⚠ Selección de carpeta cancelada.", "#ff7675");
-        }
+            destHandle = await window.showDirectoryPicker();
+            log("✅ Carpeta de destino lista.");
+            document.getElementById("btnProcess").disabled = false;
+        } catch (e) { log("❌ Selección cancelada.", "#ff4757"); }
     }
 
-    document.getElementById('input').onchange = async (e) => {
-        const files = Array.from(e.target.files).filter(f => f.name.toLowerCase().endsWith(".html"));
-        
-        if (files.length === 0) {
-            log("❌ No se encontraron archivos .html en la carpeta.", "#ff7675");
-            return;
-        }
+    document.getElementById('fileInput').onchange = async (e) => {
+        const files = Array.from(e.target.files).filter(f => f.name.endsWith(".html"));
+        const engine = document.getElementById("engine");
 
-        log(`🚀 Iniciando proceso de ${files.length} archivos...`, "#f1c40f");
-        const frame = document.getElementById("frame");
+        log(`📂 Iniciando conversión de ${files.length} archivos...`, "#f1c40f");
 
-        for (let file of files) {
+        for (const file of files) {
             try {
-                // Leer el archivo HTML
-                let htmlContent = await file.text();
+                const content = await file.text();
                 
-                // Cargar en el iframe para renderizado
-                frame.srcdoc = htmlContent;
+                // Inyectamos el HTML en el iframe
+                engine.srcdoc = content;
+
+                // Esperamos un momento para que el navegador resuelva el blob interno
+                await new Promise(r => setTimeout(r, 1200));
+
+                const doc = engine.contentDocument || engine.contentWindow.document;
+                const text = doc.body.innerText;
+
+                // --- Extracción de Datos para Nombre ---
+                const nroEnvio = text.match(/\b\d{15}\b/)?.[0] || "ERROR_NRO";
+                const idMatch = text.match(/ID\s*[:\-]?\s*(\d+)/i);
+                const idC = idMatch ? idMatch[1] : "ID_DESCONOCIDO";
                 
-                // Esperar a que el contenido cargue y se procesen los estilos internos
-                await new Promise(r => {
-                    frame.onload = () => setTimeout(r, 800); // 800ms de delay para evitar PDFs "rotos"
-                });
+                const finalName = `${nroEnvio}_ID_${idC}.pdf`;
 
-                let doc = frame.contentDocument || frame.contentWindow.document;
-                let text = doc.body.innerText;
+                // --- Captura del PDF Real ---
+                // Buscamos el objeto que contiene el PDF (Andreani usa embed o iframe)
+                const pdfElement = doc.querySelector('embed[type="application/pdf"], iframe[src^="blob:"], object');
+                
+                if (pdfElement && (pdfElement.src || pdfElement.data)) {
+                    const blobUrl = pdfElement.src || pdfElement.data;
+                    
+                    // FETCH directo al blob para obtener el archivo original sin corrupción
+                    const res = await fetch(blobUrl);
+                    const pdfBlob = await res.blob();
 
-                // Extraer datos para el nombre
-                let seguimiento = extraerSeguimiento(text);
-                let id = extraerID(text);
-                let nombreArchivo = `${seguimiento}_ID_${id}.pdf`;
+                    // Guardado en la carpeta elegida
+                    const fileH = await destHandle.getFileHandle(finalName, { create: true });
+                    const writable = await fileH.createWritable();
+                    await writable.write(pdfBlob);
+                    await writable.close();
 
-                log(`⏳ Procesando: ${file.name} -> ${nombreArchivo}...`, "#aaa");
-
-                // Configuración de html2pdf para máxima calidad
-                const opt = {
-                    margin: 10,
-                    filename: nombreArchivo,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2, useCORS: true, logging: false },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                };
-
-                // Generar Blob del PDF
-                const pdfBlob = await html2pdf().set(opt).from(doc.body).outputPdf('blob');
-
-                // Guardar directamente en la carpeta seleccionada
-                const fileHandle = await dirHandle.getFileHandle(nombreArchivo, { create: true });
-                const writable = await fileHandle.createWritable();
-                await writable.write(pdfBlob);
-                await writable.close();
-
-                log(`✔ Guardado: ${nombreArchivo}`, "#55efc4");
+                    log(`✔ PROCESADO: ${finalName}`);
+                } else {
+                    log(`⚠️ No se pudo extraer binario de ${file.name} (HTML vacío o expirado)`, "#ff4757");
+                }
 
             } catch (err) {
-                log(`❌ Error en ${file.name}: ${err.message}`, "#ff7675");
+                log(`❌ ERROR en ${file.name}: ${err.message}`, "#ff4757");
             }
         }
-
-        log("<br>🎉 ¡PROCESO COMPLETADO CON ÉXITO!", "#f1c40f");
+        log("🎉 FINALIZADO. Revisa tu carpeta de destino.", "#f1c40f");
     };
 </script>
 
