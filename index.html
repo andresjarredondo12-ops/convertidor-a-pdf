@@ -9,14 +9,14 @@
         .container { max-width: 600px; margin: auto; border: 1px solid #ccc; padding: 20px; border-radius: 8px; }
         button { background: #007bff; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px; }
         button:hover { background: #0056b3; }
-        #status { margin-top: 15px; color: green; font-weight: bold; }
+        #status { margin-top: 15px; color: #333; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h2>Convertidor HTML a PDF Masivo</h2>
-    <p>Selecciona los archivos .html de tu carpeta:</p>
+    <p>Selecciona tus archivos .html (puedes seleccionar muchos a la vez manteniendo presionado Shift o Ctrl):</p>
     
     <input type="file" id="fileInput" multiple accept=".html">
     <br><br>
@@ -32,34 +32,46 @@ async function procesarArchivos() {
     const input = document.getElementById('fileInput');
     const status = document.getElementById('status');
     const tempContainer = document.getElementById('temp-content');
+    const totalFiles = input.files.length;
 
-    if (input.files.length === 0) {
+    if (totalFiles === 0) {
         alert("Por favor, selecciona al menos un archivo.");
         return;
     }
 
-    status.innerText = "Procesando archivos...";
+    const opciones = {
+        margin:       10,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    let contador = 0;
 
     for (let file of input.files) {
-        const text = await file.text(); // Leemos el contenido del HTML
-        tempContainer.innerHTML = text; // Lo metemos en nuestro contenedor invisible
+        contador++;
+        status.innerText = `Procesando (${contador} de ${totalFiles}): ${file.name}`;
 
-        const opciones = {
-            margin:       10,
-            filename:     file.name.replace('.html', '.pdf'),
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2 },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
+        try {
+            const text = await file.text();
+            tempContainer.innerHTML = text;
 
-        // Ejecutamos la conversión y descarga
-        await html2pdf().set(opciones).from(tempContainer).save();
-        
-        status.innerText = `Descargado: ${file.name}`;
+            // Actualizamos el nombre del PDF basado en el HTML original
+            opciones.filename = file.name.replace(/\.html?$/i, '.pdf');
+
+            // Generamos y descargamos el PDF
+            await html2pdf().set(opciones).from(tempContainer).save();
+
+            // Pequeña pausa de 300ms para evitar que el navegador sature las descargas
+            await new Promise(resolve => setTimeout(resolve, 300));
+
+        } catch (error) {
+            console.error(`Error procesando ${file.name}:`, error);
+        }
     }
 
-    status.innerText = "¡Todos los archivos han sido procesados!";
-    tempContainer.innerHTML = ""; // Limpiamos
+    status.innerText = `¡Proceso completado! Se han procesado ${totalFiles} archivos.`;
+    tempContainer.innerHTML = ""; // Limpiamos el contenedor temporal
 }
 </script>
 
